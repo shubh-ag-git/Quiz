@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MySQL Quiz 2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Styles for a professional look and feel */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light pastel background */
+        }
+        .quiz-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .main-content {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .question-panel, .options-panel {
+            position: relative;
+            overflow: hidden; /* To contain watermarks */
+        }
+        .watermark-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 20px;
+        }
+        .watermark {
+            font-size: 1.5rem;
+            color: rgba(0, 0, 0, 0.08);
+            font-weight: 700;
+            transform: rotate(-15deg);
+            text-align: center;
+            user-select: none;
+        }
+        .option.selected {
+            background-color: #cce7ff; /* Pastel Light Blue */
+            border-color: #007bff;
+        }
+        .option.correct {
+            background-color: #d4edda;
+            border-color: #28a745;
+        }
+        .option.incorrect {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+            color: #000;
+            font-weight: 600;
+        }
+        #palette {
+            transition: transform 0.3s ease-in-out;
+        }
+        .palette-hidden {
+            transform: translateX(-100%);
+        }
+        /* Simple Loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Print-specific styles */
+        @media print {
+            body, .report-container {
+                background-color: #fff;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .main-content {
+                padding-top: 0;
+                overflow: visible;
+            }
+            .report-container {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+            .grid-cols-1, .grid-cols-2, .grid-cols-3 {
+                grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+            }
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div id="quiz-app" class="quiz-container">
+        <!-- App Header -->
+        <header id="app-header" class="hidden bg-white shadow-md p-4 flex justify-between items-center fixed top-0 left-0 right-0 z-20">
+            <div class="flex items-center space-x-4">
+                <button id="palette-toggle" class="p-2 rounded-md hover:bg-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <h1 class="text-xl font-bold text-gray-700">MySQL Quiz</h1>
+            </div>
+            <div id="section-nav" class="hidden md:flex space-x-2"></div>
+            <div class="flex items-center space-x-4">
+                <div id="timer" class="text-lg font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-md">20:00</div>
+            </div>
+        </header>
+
+        <!-- Progress Bar -->
+        <div id="progress-bar-container" class="hidden fixed top-16 left-0 right-0 h-1.5 bg-gray-200 z-20">
+            <div id="progress-bar" class="h-full bg-blue-500 transition-all duration-300"></div>
+        </div>
+
+        <!-- Main Content: Welcome View -->
+        <main id="welcome-view" class="main-content flex items-center justify-center p-4" style="background-image: url('https://media.gettyimages.com/id/802064082/video/4k-abstract-particles-background-animation-loopable.jpg?s=640x640&k=20&c=gRsRiqloCZtbMlX-OyWMmMR1NkPOK5IyRQnQhV6PKzw='); background-size: cover; background-position: center;">
+            <div class="bg-white/90 backdrop-blur-sm p-0 rounded-2xl shadow-2xl text-center w-full max-w-md overflow-hidden border border-gray-200">
+                <div class="p-8 bg-gray-50/80 flex justify-center">
+                    <img 
+                        src="https://www.logo.wine/a/logo/MySQL/MySQL-Logo.wine.svg" 
+                        alt="MySQL Logo" 
+                        class="h-20 w-auto"
+                        onerror="this.onerror=null; this.src='https://placehold.co/200x80/00758f/ffffff?text=MySQL+Logo';"
+                    >
+                </div>
+                <div class="p-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Welcome to the MySQL Quiz 2.0</h1>
+                    <p class="text-gray-600 mb-6">Please enter your name to begin.</p>
+                    
+                    <input 
+                        type="text" 
+                        id="name-input" 
+                        placeholder="Your Full Name" 
+                        class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg mb-4 text-center text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    >
+                    <button 
+                        id="start-quiz-btn" 
+                        class="w-full bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transform hover:scale-105 transition-all duration-300 ease-in-out shadow-lg"
+                    >
+                        Start Quiz
+                    </button>
+                </div>
+                <div class="bg-gray-100/80 px-6 py-4 border-t border-gray-200">
+                    <p class="text-center text-xs text-gray-500">
+                        <span class="font-semibold">Crafted with care by:</span> Shubh Agarwal
+                    </p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Main Content: Quiz View -->
+        <main id="quiz-view" class="hidden main-content pt-20 pb-20">
+            <div class="container mx-auto p-4 md:p-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Question Panel -->
+                    <div class="question-panel bg-white p-6 rounded-lg shadow-lg">
+                        <div class="flex justify-between items-start mb-2">
+                            <h2 id="question-header" class="text-lg font-semibold"></h2>
+                            <button id="bookmark-btn" class="p-2 rounded-full hover:bg-yellow-100 text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <p id="question-section" class="text-sm font-medium text-blue-600 bg-blue-100 inline-block px-2 py-1 rounded-md mb-4"></p>
+                        <p id="question-text" class="text-xl leading-relaxed relative z-10"></p>
+                        <div id="question-watermark" class="watermark-container"></div>
+                    </div>
+                    <!-- Options Panel -->
+                    <div class="options-panel bg-white p-6 rounded-lg shadow-lg">
+                        <div id="options-container" class="space-y-4 relative z-10"></div>
+                        <div id="options-watermark" class="watermark-container"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Main Content: Results View -->
+        <main id="results-view" class="hidden main-content pt-8 pb-8">
+            <div id="report-content" class="container mx-auto p-4 md:p-8">
+                <div class="bg-white p-6 sm:p-8 rounded-lg shadow-lg report-container">
+                    <!-- Report Header -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
+                        <div>
+                           <h1 class="text-4xl font-bold text-gray-800">Performance Report</h1>
+                           <p id="report-user-name" class="text-lg font-semibold text-gray-700 mt-2"></p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-4 sm:mt-0 no-print">
+                            <button id="generate-study-plan-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2">
+                                <span>✨ Generate My Study Plan</span>
+                            </button>
+                            <button id="download-report-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                <span>Download Report Card</span>
+                            </button>
+                            <button id="restart-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+                                <span>Restart Quiz</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Report Body -->
+                    <div class="space-y-8">
+                        <!-- AI Study Plan -->
+                        <div id="study-plan-container" class="hidden"></div>
+                        <!-- Overall Performance -->
+                        <div id="overall-performance"></div>
+                        <!-- Section-wise Breakdown -->
+                        <div id="section-performance"></div>
+                        <!-- Time & Pace Analysis -->
+                        <div id="time-pace-analysis"></div>
+                        <!-- Improvement Suggestions -->
+                        <div id="improvement-suggestions"></div>
+                        <!-- Detailed Question Review -->
+                        <div id="detailed-question-review"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer id="app-footer" class="hidden bg-white shadow-inner p-4 flex justify-between items-center fixed bottom-0 left-0 right-0 z-20">
+            <button id="prev-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-6 rounded-lg hover:bg-gray-300 transition-colors">Previous</button>
+            <button id="next-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">Next</button>
+            <button id="submit-btn" class="hidden bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors">Submit Quiz</button>
+        </footer>
+        
+        <!-- Question Palette -->
+        <div id="palette" class="palette-hidden fixed top-0 left-0 h-full w-80 bg-white shadow-2xl z-30 p-4 flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold">Question Palette</h2>
+                <button id="palette-close" class="p-2 rounded-md hover:bg-gray-100">&times;</button>
+            </div>
+            <div class="flex justify-center space-x-2 mb-4">
+                <button id="filter-all" class="flex-1 bg-blue-500 text-white py-1 px-3 rounded-md text-sm">All</button>
+                <button id="filter-bookmarked" class="flex-1 bg-gray-200 text-gray-700 py-1 px-3 rounded-md text-sm">Bookmarked</button>
+            </div>
+            <div id="palette-grid" class="flex-grow overflow-y-auto grid grid-cols-5 gap-2">
+                <!-- Palette buttons will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const quizData = [
+            // Section 1: Financial & Business Context
+            { type: 'mcq', section: "Financial & Business Context", question: "You need to calculate the Month-over-Month (MoM) growth rate for revenue. The formula is `((current_month_revenue - previous_month_revenue) / previous_month_revenue)`. Which query is the most robust for this calculation, correctly handling months with zero revenue and the very first month in the dataset?", options: ["`SELECT month, (revenue / LAG(revenue) OVER w) - 1 FROM monthly_sales WINDOW w AS (ORDER BY month);`", "`SELECT month, (revenue - LAG(revenue, 1, 0) OVER w) / LAG(revenue, 1, 1) OVER w FROM monthly_sales WINDOW w AS (ORDER BY month);`", "`SELECT month, (revenue - LAG(revenue) OVER w) / NULLIF(LAG(revenue) OVER w, 0) FROM monthly_sales WINDOW w AS (ORDER BY month);`", "`SELECT month, (revenue - LAG(revenue) OVER w) / LAG(revenue) OVER w FROM monthly_sales WINDOW w AS (ORDER BY month) WHERE LAG(revenue) OVER w IS NOT NULL;`", "`SELECT month, (revenue - LAG(revenue, 1, revenue) OVER w) / LAG(revenue, 1, revenue) OVER w FROM monthly_sales WINDOW w AS (ORDER BY month);`", "A self-join is required as window functions cannot handle the first row's NULL value gracefully."], answer: 2, explanation: "This is the most robust method. `LAG(revenue) OVER w` correctly gets the previous month's revenue. The key is `NULLIF(denominator, 0)`, which returns NULL if the denominator (previous month's revenue) is 0, preventing a division-by-zero error and correctly resulting in a NULL growth rate. Option B incorrectly substitutes 1 for the denominator, leading to a wrong calculation. The other options will either fail on the first row or on a month with zero revenue." },
+            { type: 'mcq', section: "Financial & Business Context", question: "A marketing team wants to identify 'at-risk' customers. The definition is: 'Customers who have not purchased in the last 90 days, but have made at least 3 purchases in total.' Given a sales table with `customer_id` and `purchase_date`, which query logic best identifies these customers?", options: ["`GROUP BY customer_id HAVING MAX(purchase_date) < DATE_SUB(NOW(), INTERVAL 90 DAY) AND COUNT(*) >= 3`", "`WHERE purchase_date < DATE_SUB(NOW(), INTERVAL 90 DAY) GROUP BY customer_id HAVING COUNT(*) >= 3`", "`GROUP BY customer_id HAVING DATEDIFF(NOW(), MAX(purchase_date)) < 90 AND COUNT(DISTINCT order_id) >= 3`", "`GROUP BY customer_id HAVING MAX(purchase_date) < DATE_SUB(NOW(), INTERVAL 90 DAY) AND MIN(purchase_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)`", "`SELECT customer_id, MAX(purchase_date), COUNT(*) FROM sales GROUP BY customer_id WHERE MAX(purchase_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)`", "`GROUP BY customer_id HAVING COUNT(*) >= 3`"], answer: 0, explanation: "This correctly groups by customer, then checks two conditions in the HAVING clause: 1) The customer's most recent purchase (`MAX(purchase_date)`) was more than 90 days ago. 2) The total count of their purchases is at least 3. Option B incorrectly filters out recent purchases before grouping, which would miscalculate the total number of purchases for active customers." },
+            { type: 'mmcq', section: "Financial & Business Context", question: "You are building a financial dashboard. A key requirement is to display all revenue figures formatted as strings like '$1,234,567.89'. Which of the following statements are true about performing this formatting directly in MySQL?", options: ["Using `FORMAT()` and `CONCAT()` is a standard way to achieve this.", "Once a number is formatted into a string, it can no longer be used in mathematical calculations (e.g., `SUM()`) within the same query level.", "The `TO_CHAR()` function is the recommended, high-performance function in MySQL for currency formatting.", "Formatting should always be done in the application layer (e.g., Python, Java) and never in the database, as it violates the principles of data normalization.", "`FORMAT(1234.56, 'en_US')` will correctly format the number as '$1,234.56'.", "Using `CONCAT('$', ROUND(amount, 2))` is a robust method for adding thousand separators."], answer: [0, 1], explanation: "(A) is the standard method in MySQL. (B) is true because the data type changes from numeric to string. (C) is false; `TO_CHAR` is not a standard MySQL function (it's common in PostgreSQL and Oracle). (D) is a common opinion but not a strict rule; formatting in SQL views is very common. (E) is false; the locale in `FORMAT` only affects the decimal and thousand separators, not the currency symbol. (F) is false; `ROUND` only handles decimal places, not commas." },
+            { type: 'mcq', section: "Financial & Business Context", question: "Your company is launching a subscription service. You need to design a database schema to track which customers are subscribed to which products, including start date, end date, and status. Which is the most normalized and scalable design?", options: ["Add `subscription_product_id`, `start_date`, and `status` columns to the main `customers` table.", "Create a single `subscriptions` table with columns for `customer_id`, `product_id`, `start_date`, `end_date`, and `status`.", "Add a `JSON` column to the `customers` table to store an array of their subscription objects.", "Create a new table for each subscription product (e.g., `product_A_subscribers`, `product_B_subscribers`).", "Add a `is_subscribed` boolean column to the `customers` table and a `subscription_tier` text column.", "Store all subscription data in a single text field in the `customers` table, separated by commas."], answer: 1, explanation: "A separate `subscriptions` table (a junction or linking table) is the correct, normalized approach for a many-to-many relationship (a customer can have many subscriptions; a product can have many subscribers). It avoids data redundancy and allows for easy querying of subscription history and status." },
+            { type: 'mcq', section: "Financial & Business Context", question: "A manager asks for a report on 'user engagement'. Given a `logins` table with `user_id` and `login_timestamp`, which business metric is impossible to calculate from this table alone?", options: ["The average number of logins per user per week.", "The list of users who have not logged in for more than 30 days.", "The average session duration for each user.", "The daily active users (DAU).", "The time of day with the most login activity.", "The rolling 7-day average of total logins."], answer: 2, explanation: "To calculate session duration, you need both a login and a logout timestamp. The `logins` table only provides the start of the session. All other metrics can be derived from the login timestamps alone." },
+            { type: 'tita', section: "Financial & Business Context", question: "Write the SQL function used to convert a string like '05-20-2024' into a MySQL `DATE` type. The function name is case-insensitive.", answer: "STR_TO_DATE", explanation: "The full usage would be `STR_TO_DATE('05-20-2024', '%m-%d-%Y')`. This function is essential for parsing non-standard date strings into a native date format." },
+            // Section 2: Critical Thinking & Problem Solving
+            { type: 'mcq', section: "Critical Thinking & Problem Solving", question: "A query joining `orders` (10 million rows) and `customers` (50,000 rows) on `customer_id` is suddenly running very slowly. The query plan reveals a 'Full Table Scan' on the `orders` table. What is the most likely cause and first thing to check?", options: ["The `customers` table has grown too large.", "The MySQL server needs more RAM.", "The table statistics are outdated, causing the optimizer to choose a poor execution plan.", "The `customer_id` column in the `orders` table is missing an index.", "There is a data type mismatch between `orders.customer_id` and `customers.customer_id`.", "The query is using a `LEFT JOIN` instead of an `INNER JOIN`."], answer: 3, explanation: "A full table scan on the large table in a join is a classic symptom of a missing index on the join key (`customer_id` in this case). An index allows the database to perform a much faster lookup instead of scanning all 10 million rows. While other options can cause performance issues, a missing index is the most direct cause of this specific query plan behavior." },
+            { type: 'mmcq', section: "Critical Thinking & Problem Solving", question: "You have a query: `SELECT c.name, p.product_name FROM customers c LEFT JOIN purchases p ON c.id = p.customer_id WHERE p.purchase_date > '2024-01-01';`. The goal is to get all customers and show their recent purchases if they exist. However, the query is only returning customers who have made recent purchases. Why?", options: ["The `WHERE` clause effectively turns the `LEFT JOIN` into an `INNER JOIN`.", "The correct way to fix this is to move the date condition into the `ON` clause of the join.", "A `RIGHT JOIN` should have been used instead to get all purchases.", "The query is syntactically wrong and should produce an error.", "For customers with no purchases, `p.purchase_date` is `NULL`, and the `WHERE` clause filters these `NULL` values out.", "A subquery must be used instead of a join for this type of filtering."], answer: [0, 1, 4], explanation: "(A) and (E) correctly explain the core problem: a filter in the `WHERE` clause on the right table of a `LEFT JOIN` is applied after the join has been constructed. This removes all rows where the right side is `NULL` (i.e., customers with no purchases), negating the 'left' behavior. (B) is the correct solution: move the filter condition to the `ON` clause (`...ON c.id = p.customer_id AND p.purchase_date > '2024-01-01'`) to filter the purchases table before it's joined." },
+            { type: 'mcq', section: "Critical Thinking & Problem Solving", question: "You need to remove all data from a very large `log_archive` table. You do not need to recover the data, and you want the operation to be as fast as possible without logging each deleted row. Which command is most appropriate?", options: ["`DELETE FROM log_archive;`", "`DROP TABLE log_archive;`", "`TRUNCATE TABLE log_archive;`", "`ALTER TABLE log_archive ENGINE=InnoDB;`", "`DELETE FROM log_archive WHERE 1=1;`", "A stored procedure that deletes rows in batches of 1000."], answer: 2, explanation: "`TRUNCATE TABLE` is a DDL command that quickly removes all rows from a table by deallocating the data pages. It is minimally logged and much faster than `DELETE`, which is a DML command that removes rows one by one. `DROP TABLE` would remove the table structure itself, which is not the requirement." },
+            { type: 'mcq', section: "Critical Thinking & Problem Solving", question: "You are tasked with cleaning a `users` table where the `phone_number` column is a string and contains values like `'(123) 456-7890'`, `'123.456.7890'`, and `'1234567890'`. The goal is to standardize them all to the format `'1234567890'`. What is the most robust approach?", options: ["A series of nested `REPLACE()` functions to remove '(', ')', '-', and '.'.", "Use a regular expression function like `REGEXP_REPLACE(phone_number, '[^0-9]', '')`.", "Export the data to a Python script, clean it, and re-import it.", "Use `SUBSTRING` and `CONCAT` to piece the numbers together based on their position.", "A `CASE` statement checking for each possible format.", "It's impossible to do this reliably in SQL; it must be done in an application."], answer: 1, explanation: "Using a regular expression is by far the most robust and concise method. It defines a pattern (any character that is not a digit) and replaces it with an empty string, handling all current and future variations in a single, clean operation. Nested `REPLACE` calls are clumsy and might miss other special characters." },
+            { type: 'mcq', section: "Critical Thinking & Problem Solving", question: "An analyst has written a query with five CTEs that simply do `SELECT * FROM some_table`. They then join these CTEs. Why is this an 'anti-pattern' that can lead to poor performance?", options: ["CTEs are always slower than temporary tables because they are not materialized.", "The query optimizer cannot 'see through' the CTEs, preventing it from using underlying indexes and choosing the optimal join order.", "MySQL has a hard limit of four CTEs in a single query.", "This approach forces MySQL to create five separate physical temporary tables on disk, causing excessive I/O.", "CTEs cannot be joined to other CTEs, only to base tables.", "This pattern is fine and is actually a recommended way to organize complex queries for readability."], answer: 1, explanation: "The optimizer often treats such simple CTEs as 'black boxes' or materialization fences. It cannot push `WHERE` clause predicates 'up' into the CTE definition or reorder the joins based on the underlying table statistics and indexes, almost always resulting in a suboptimal execution plan compared to joining the base tables directly." },
+            { type: 'tita', section: "Critical Thinking & Problem Solving", question: "You are debugging a query and suspect that a `JOIN` condition is incorrect, leading to an unintentional Cartesian product. What is the most common keyword or clause missing from the query that causes this issue?", answer: ["ON", "ON CLAUSE"], explanation: "In an explicit `JOIN`, forgetting the `ON` clause that specifies the join condition is the most common cause of a Cartesian product, where every row from the first table is joined to every row of the second." },
+            { type: 'tita', section: "Critical Thinking & Problem Solving", question: "What is the name of the constraint that ensures a value in a column of one table must also exist in a column of another table, thereby enforcing referential integrity?", answer: ["FOREIGN KEY", "FOREIGN KEY CONSTRAINT"], explanation: "A foreign key constraint links two tables together and is the cornerstone of referential integrity in relational databases." },
+            // Section 3: Advanced Analytical Concepts
+            { type: 'mcq', section: "Advanced Analytical Concepts", question: "You need to rank employees by salary within each department. If two employees have the same salary, they should receive the same rank, and the next rank should be skipped (e.g., 1, 2, 2, 4). Which window function accomplishes this?", options: ["`ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC)`", "`RANK() OVER (PARTITION BY department ORDER BY salary DESC)`", "`DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC)`", "`NTILE(4) OVER (PARTITION BY department ORDER BY salary DESC)`", "`CUME_DIST() OVER (PARTITION BY department ORDER BY salary DESC)`", "`PERCENT_RANK() OVER (PARTITION BY department ORDER BY salary DESC)`"], answer: 1, explanation: "`RANK()` assigns ranks with gaps for ties, which is exactly what the question asks for. `DENSE_RANK()` would produce ranks without gaps (1, 2, 2, 3), and `ROW_NUMBER()` would assign unique numbers to all rows regardless of ties." },
+            { type: 'mcq', section: "Advanced Analytical Concepts", question: "What is the primary difference between a correlated subquery and a non-correlated subquery?", options: ["A correlated subquery can return multiple columns, while a non-correlated one cannot.", "A correlated subquery is executed only once, while a non-correlated subquery is executed for each row of the outer query.", "A correlated subquery depends on the outer query for its values and is evaluated for each row of the outer query.", "Correlated subqueries can only be used in the `WHERE` clause, while non-correlated can be used in the `SELECT` clause.", "A non-correlated subquery is another name for a Common Table Expression (CTE).", "Correlated subqueries are a deprecated feature in modern SQL."], answer: 2, explanation: "This is the fundamental difference. A non-correlated subquery is self-contained and can be run on its own. A correlated subquery contains a reference to a column from the outer query, creating a dependency that forces it to be re-evaluated for each row of that outer query." },
+            { type: 'mmcq', section: "Advanced Analytical Concepts", question: "Which of the following queries are valid and generally accepted methods for finding all records in `table_A` that do not have a matching record in `table_B` based on an `id` column?", options: ["`SELECT A.* FROM table_A A LEFT JOIN table_B B ON A.id = B.a_id WHERE B.a_id IS NULL;`", "`SELECT * FROM table_A WHERE id NOT IN (SELECT a_id FROM table_B WHERE a_id IS NOT NULL);`", "`SELECT * FROM table_A WHERE NOT EXISTS (SELECT 1 FROM table_B WHERE table_B.a_id = table_A.id);`", "`SELECT A.* FROM table_A A ANTI JOIN table_B B ON A.id = B.a_id;`", "`SELECT A.* FROM table_A A FULL OUTER JOIN table_B B ON A.id = B.a_id WHERE B.a_id IS NULL;`", "`SELECT * FROM table_A EXCEPT SELECT A.* FROM table_A A JOIN table_B B ON A.id = B.a_id;`"], answer: [0, 1, 2], explanation: "`LEFT JOIN / IS NULL` (A), `NOT EXISTS` (C), and `NOT IN` (B) are the three standard patterns. Note that for `NOT IN` to be safe, you must ensure the subquery does not return any `NULL` values. `ANTI JOIN` (D) and `EXCEPT` (F) are not standard MySQL syntax. `FULL OUTER JOIN` (E) is also not natively supported in all versions of MySQL and is not the most direct method." },
+            { type: 'mcq', section: "Advanced Analytical Concepts", question: "You need to display a 'pivot table' report showing total sales for each product, with separate columns for each year. MySQL does not have a native `PIVOT` function. What is the standard technique?", options: ["A recursive CTE that iterates through years.", "A series of `UNION ALL` statements for each year.", "Using the `GROUP_CONCAT()` function to aggregate sales into a string.", "Conditional aggregation using `SUM(CASE WHEN ...)` grouped by the product name.", "A window function with `PARTITION BY YEAR(sale_date)`.", "It's not possible in MySQL; this must be done in a client application."], answer: 3, explanation: "This technique is called conditional aggregation. You group by the entity you want on each row (product_name), and then for each column you want to create, you use an aggregate function that only considers the values for that column using a `CASE` statement (e.g., `SUM(CASE WHEN YEAR(sale_date) = 2024 THEN amount ELSE 0 END) AS sales_2024`)." },
+            { type: 'mcq', section: "Advanced Analytical Concepts", question: "What is the purpose of the `PARTITION BY` clause within a window function?", options: ["It sorts the rows for the final output of the query, similar to `ORDER BY`.", "It filters out rows before the window function is applied, similar to a `WHERE` clause.", "It divides the rows into distinct, independent groups, and the function restarts its calculation for each group.", "It is a mandatory clause for all window functions to define the window frame.", "It combines the results of multiple window functions into a single column.", "It is an alias for the `GROUP BY` clause but with better performance for window functions."], answer: 2, explanation: "The `PARTITION BY` clause acts like a `GROUP BY` but for the window function only. It doesn't collapse the rows; instead, it creates separate 'windows' or partitions of data, and the window function performs its calculation independently within each partition before restarting for the next." },
+            { type: 'tita', section: "Advanced Analytical Concepts", question: "Which window function would you use to fetch the value from the row that is 3 rows after the current row, within the same partition?", answer: ["LEAD()", "LEAD"], explanation: "The full syntax would be `LEAD(column_name, 3) OVER (...)`. The `LEAD` function 'looks ahead' in the partition. `LAG()` is used for looking at previous rows." },
+            { type: 'tita', section: "Advanced Analytical Concepts", question: "Write a full query to find the second-highest salary from an `employees` table. The query should correctly handle ties. The table has columns `id` and `salary`.", answer: ["SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 1 OFFSET 1", "SELECT MAX(salary) FROM employees WHERE salary < (SELECT MAX(salary) FROM employees)"], explanation: "The `LIMIT 1 OFFSET 1` approach is concise and effective. The subquery approach is also very common and robust as it correctly finds the highest salary that is less than the absolute highest salary. Using `DENSE_RANK()` is another excellent, modern solution." }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const appHeader = document.getElementById('app-header');
+            const progressBarContainer = document.getElementById('progress-bar-container');
+            const appFooter = document.getElementById('app-footer');
+            const welcomeView = document.getElementById('welcome-view');
+            const quizView = document.getElementById('quiz-view');
+            const resultsView = document.getElementById('results-view');
+            const nameInput = document.getElementById('name-input');
+            const startQuizBtn = document.getElementById('start-quiz-btn');
+            const questionHeaderEl = document.getElementById('question-header');
+            const questionSectionEl = document.getElementById('question-section');
+            const questionTextEl = document.getElementById('question-text');
+            const optionsContainerEl = document.getElementById('options-container');
+            const progressBarEl = document.getElementById('progress-bar');
+            const timerEl = document.getElementById('timer');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            const bookmarkBtn = document.getElementById('bookmark-btn');
+            const paletteToggle = document.getElementById('palette-toggle');
+            const paletteClose = document.getElementById('palette-close');
+            const palette = document.getElementById('palette');
+            const paletteGrid = document.getElementById('palette-grid');
+            const filterAllBtn = document.getElementById('filter-all');
+            const filterBookmarkedBtn = document.getElementById('filter-bookmarked');
+            const restartBtn = document.getElementById('restart-btn');
+            const downloadReportBtn = document.getElementById('download-report-btn');
+            const questionWatermarkEl = document.getElementById('question-watermark');
+            const optionsWatermarkEl = document.getElementById('options-watermark');
+            const sectionNavEl = document.getElementById('section-nav');
+            const generateStudyPlanBtn = document.getElementById('generate-study-plan-btn');
+
+            // --- Quiz State ---
+            let shuffledQuestions = [];
+            let currentQuestionIndex = 0;
+            let userAnswers = [];
+            let bookmarkedQuestions = [];
+            let questionTimers = [];
+            let questionStartTime;
+            let totalTime = 20 * 60; // 20 minutes in seconds
+            let timerInterval;
+            let timeLeft;
+            let watermarkId = '';
+            let reportData = {};
+            let userName = '';
+
+            // --- UTILITY FUNCTIONS ---
+            const shuffleArray = (array) => {
+                const newArr = [...array];
+                for (let i = newArr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+                }
+                return newArr;
+            };
+
+            const formatTime = (seconds, withUnits = false) => {
+                if (isNaN(seconds) || seconds < 0) return "0s";
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                if (withUnits) {
+                    return `${mins > 0 ? mins + 'm ' : ''}${secs}s`;
+                }
+                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            };
+            
+            const escapeHtml = (unsafe) => {
+                if (typeof unsafe !== 'string') return '';
+                return unsafe
+                     .replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;");
+            };
+
+            // --- QUIZ LOGIC ---
+            function startQuiz() {
+                // Reset state
+                currentQuestionIndex = 0;
+                bookmarkedQuestions = new Array(quizData.length).fill(false);
+                questionTimers = new Array(quizData.length).fill(0);
+                watermarkId = 'shagarwalbh@gmail.com';
+
+                // Group by section, shuffle within section, then flatten
+                const sections = [...new Set(quizData.map(q => q.section))];
+                let sectionGrouped = [];
+                sections.forEach(section => {
+                    const questionsInSection = quizData.filter(q => q.section === section);
+                    sectionGrouped.push(...shuffleArray(questionsInSection));
+                });
+                shuffledQuestions = sectionGrouped;
+                
+                // Initialize userAnswers based on question type
+                userAnswers = shuffledQuestions.map(q => {
+                    if (q.type === 'mmcq') return [];
+                    if (q.type === 'tita') return '';
+                    return null;
+                });
+
+                // Shuffle options for each MCQ/MMCQ question
+                shuffledQuestions.forEach(q => {
+                    if (q.type === 'mcq' || q.type === 'mmcq') {
+                        const originalCorrectOptions = Array.isArray(q.answer) ? q.answer.map(i => q.options[i]) : [q.options[q.answer]];
+                        q.shuffledOptions = shuffleArray(q.options);
+                        if (q.type === 'mcq') {
+                            q.shuffledAnswer = q.shuffledOptions.indexOf(originalCorrectOptions[0]);
+                        } else { // mmcq
+                            q.shuffledAnswer = originalCorrectOptions.map(opt => q.shuffledOptions.indexOf(opt)).sort((a,b) => a - b);
+                        }
+                    }
+                });
+
+                // Show quiz view, hide others
+                quizView.classList.remove('hidden');
+                appHeader.classList.remove('hidden');
+                progressBarContainer.classList.remove('hidden');
+                appFooter.classList.remove('hidden');
+                welcomeView.classList.add('hidden');
+                resultsView.classList.add('hidden');
+
+                // Render UI
+                renderQuestion();
+                renderPalette();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timerInterval);
+                timeLeft = totalTime;
+                timerEl.textContent = formatTime(timeLeft);
+
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    timerEl.textContent = formatTime(timeLeft);
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        submitQuiz();
+                    }
+                }, 1000);
+            }
+
+            function renderQuestion() {
+                if (questionStartTime) {
+                    const timeSpent = (Date.now() - questionStartTime) / 1000;
+                    questionTimers[currentQuestionIndex] += timeSpent;
+                }
+                questionStartTime = Date.now();
+
+                const question = shuffledQuestions[currentQuestionIndex];
+                questionHeaderEl.textContent = `Question ${currentQuestionIndex + 1} of ${shuffledQuestions.length}`;
+                questionSectionEl.textContent = question.section;
+                questionTextEl.innerHTML = question.question.replace(/`(.*?)`/g, '<code class="bg-gray-100 font-bold text-black px-1 rounded-md font-mono">$1</code>');
+                
+                optionsContainerEl.innerHTML = '';
+                
+                switch (question.type) {
+                    case 'mcq':
+                        renderMcqOptions(question);
+                        break;
+                    case 'mmcq':
+                        renderMmcqOptions(question);
+                        break;
+                    case 'tita':
+                        renderTitaOption(question);
+                        break;
+                }
+
+                updateProgressBar();
+                updateNavButtons();
+                updateBookmarkButton();
+                renderWatermarks();
+                renderSectionNav();
+            }
+            
+            function renderMcqOptions(question) {
+                question.shuffledOptions.forEach((option, index) => {
+                    const optionEl = document.createElement('button');
+                    optionEl.className = 'option w-full text-left p-4 border rounded-lg hover:bg-blue-50 transition-colors';
+                    optionEl.innerHTML = `<span class="font-bold mr-2">${String.fromCharCode(65 + index)}.</span> ${option.replace(/`(.*?)`/g, '<code class="bg-gray-100 font-bold text-black px-1 rounded-md font-mono">$1</code>')}`;
+                    optionEl.onclick = () => selectSingleOption(index);
+                    
+                    if (userAnswers[currentQuestionIndex] === index) {
+                        optionEl.classList.add('selected');
+                    }
+                    optionsContainerEl.appendChild(optionEl);
+                });
+            }
+
+            function renderMmcqOptions(question) {
+                const instruction = document.createElement('p');
+                instruction.className = 'text-sm text-gray-600 mb-2';
+                instruction.textContent = 'Select all that apply.';
+                optionsContainerEl.appendChild(instruction);
+
+                question.shuffledOptions.forEach((option, index) => {
+                    const wrapper = document.createElement('label');
+                    wrapper.className = 'option flex items-center w-full text-left p-4 border rounded-lg hover:bg-blue-50 transition-colors cursor-pointer';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'mr-4 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500';
+                    checkbox.checked = userAnswers[currentQuestionIndex].includes(index);
+                    checkbox.onchange = () => selectMultiOption(index);
+
+                    const text = document.createElement('span');
+                    text.innerHTML = `${option.replace(/`(.*?)`/g, '<code class="bg-gray-100 font-bold text-black px-1 rounded-md font-mono">$1</code>')}`;
+                    
+                    wrapper.appendChild(checkbox);
+                    wrapper.appendChild(text);
+                    
+                    if (userAnswers[currentQuestionIndex].includes(index)) {
+                        wrapper.classList.add('selected');
+                    }
+                    optionsContainerEl.appendChild(wrapper);
+                });
+            }
+
+            function renderTitaOption(question) {
+                const inputEl = document.createElement('input');
+                inputEl.type = 'text';
+                inputEl.className = 'w-full p-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition';
+                inputEl.placeholder = 'Type your answer here...';
+                inputEl.value = userAnswers[currentQuestionIndex] || '';
+                inputEl.oninput = (e) => {
+                    userAnswers[currentQuestionIndex] = e.target.value;
+                };
+                optionsContainerEl.appendChild(inputEl);
+            }
+            
+            function renderSectionNav() {
+                const sections = [...new Set(quizData.map(q => q.section))];
+                const currentSection = shuffledQuestions[currentQuestionIndex].section;
+                sectionNavEl.innerHTML = '';
+                sections.forEach(section => {
+                    const btn = document.createElement('button');
+                    btn.className = 'py-1 px-3 text-sm font-medium rounded-md transition-colors';
+                    btn.textContent = section;
+                    
+                    if (section === currentSection) {
+                        btn.classList.add('bg-blue-600', 'text-white');
+                    } else {
+                        btn.classList.add('bg-gray-100', 'hover:bg-gray-200');
+                    }
+
+                    btn.onclick = () => {
+                        const firstQuestionOfSection = shuffledQuestions.findIndex(q => q.section === section);
+                        if (firstQuestionOfSection !== -1) {
+                            goToQuestion(firstQuestionOfSection);
+                        }
+                    };
+                    sectionNavEl.appendChild(btn);
+                });
+            }
+
+            function renderWatermarks() {
+                let watermarkHTML = '';
+                for (let i = 0; i < 15; i++) {
+                    watermarkHTML += `<div class="watermark">${watermarkId}</div>`;
+                }
+                questionWatermarkEl.innerHTML = watermarkHTML;
+                optionsWatermarkEl.innerHTML = watermarkHTML;
+            }
+
+            function selectSingleOption(index) {
+                userAnswers[currentQuestionIndex] = index;
+                renderQuestion(); // Re-render to show selection
+                renderPalette(); // Update palette to show as answered
+            }
+
+            function selectMultiOption(index) {
+                const currentAnswers = userAnswers[currentQuestionIndex];
+                const answerIndex = currentAnswers.indexOf(index);
+                if (answerIndex > -1) {
+                    currentAnswers.splice(answerIndex, 1); // Uncheck
+                } else {
+                    currentAnswers.push(index); // Check
+                }
+                renderQuestion();
+                renderPalette();
+            }
+
+            function isQuestionAnswered(index) {
+                const answer = userAnswers[index];
+                const type = shuffledQuestions[index].type;
+                if (type === 'mmcq') return answer.length > 0;
+                if (type === 'tita') return answer.trim() !== '';
+                return answer !== null;
+            }
+
+            function updateProgressBar() {
+                let answeredCount = 0;
+                for(let i=0; i<shuffledQuestions.length; i++) {
+                    if(isQuestionAnswered(i)) answeredCount++;
+                }
+                const progress = (answeredCount / shuffledQuestions.length) * 100;
+                progressBarEl.style.width = `${progress}%`;
+            }
+
+            function updateNavButtons() {
+                prevBtn.disabled = currentQuestionIndex === 0;
+                prevBtn.classList.toggle('opacity-50', prevBtn.disabled);
+
+                if (currentQuestionIndex === shuffledQuestions.length - 1) {
+                    nextBtn.classList.add('hidden');
+                    submitBtn.classList.remove('hidden');
+                } else {
+                    nextBtn.classList.remove('hidden');
+                    submitBtn.classList.add('hidden');
+                }
+            }
+            
+            function updateBookmarkButton() {
+                if (bookmarkedQuestions[currentQuestionIndex]) {
+                    bookmarkBtn.classList.add('text-yellow-500');
+                    bookmarkBtn.classList.remove('text-gray-400');
+                    bookmarkBtn.firstElementChild.style.fill = 'currentColor';
+                } else {
+                    bookmarkBtn.classList.remove('text-yellow-500');
+                    bookmarkBtn.classList.add('text-gray-400');
+                    bookmarkBtn.firstElementChild.style.fill = 'none';
+                }
+            }
+
+            function goToQuestion(index) {
+                if (index >= 0 && index < shuffledQuestions.length) {
+                    // Stop timer for previous question before moving
+                    if (questionStartTime) {
+                        const timeSpent = (Date.now() - questionStartTime) / 1000;
+                        questionTimers[currentQuestionIndex] = (questionTimers[currentQuestionIndex] || 0) + timeSpent;
+                        questionStartTime = null; // Reset
+                    }
+                    currentQuestionIndex = index;
+                    renderQuestion();
+                    palette.classList.add('palette-hidden');
+                }
+            }
+
+            function renderPalette(filter = 'all') {
+                paletteGrid.innerHTML = '';
+                shuffledQuestions.forEach((q, index) => {
+                    if (filter === 'bookmarked' && !bookmarkedQuestions[index]) {
+                        return;
+                    }
+                    const btn = document.createElement('button');
+                    btn.textContent = index + 1;
+                    btn.className = 'h-12 w-12 rounded-md flex items-center justify-center font-semibold transition-colors';
+                    btn.onclick = () => goToQuestion(index);
+
+                    if (isQuestionAnswered(index)) {
+                        btn.classList.add('bg-green-200', 'text-green-800', 'hover:bg-green-300');
+                    } else if (bookmarkedQuestions[index]) {
+                        btn.classList.add('bg-yellow-200', 'text-yellow-800', 'hover:bg-yellow-300');
+                    } else {
+                        btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                    }
+                    paletteGrid.appendChild(btn);
+                });
+            }
+
+            function submitQuiz() {
+                clearInterval(timerInterval);
+                // Record time for the last question
+                if (questionStartTime) {
+                    const timeSpent = (Date.now() - questionStartTime) / 1000;
+                    questionTimers[currentQuestionIndex] += timeSpent;
+                }
+                
+                quizView.classList.add('hidden');
+                appHeader.classList.add('hidden');
+                progressBarContainer.classList.add('hidden');
+                appFooter.classList.add('hidden');
+                resultsView.classList.remove('hidden');
+                
+                document.getElementById('report-user-name').textContent = `Report for: ${userName}`;
+                calculateAndRenderResults();
+            }
+            
+            function checkAnswerCorrectness(question, userAnswer) {
+                switch(question.type) {
+                    case 'mcq':
+                        return userAnswer === question.shuffledAnswer;
+                    case 'mmcq':
+                        const sortedUserAnswer = [...userAnswer].sort((a,b) => a - b);
+                        return JSON.stringify(sortedUserAnswer) === JSON.stringify(question.shuffledAnswer);
+                    case 'tita':
+                        const cleanedUserAnswer = userAnswer.trim().toUpperCase();
+                        if (Array.isArray(question.answer)) {
+                            return question.answer.some(ans => ans.toUpperCase() === cleanedUserAnswer);
+                        }
+                        return cleanedUserAnswer === question.answer.toUpperCase();
+                    default:
+                        return false;
+                }
+            }
+
+            function calculateAndRenderResults() {
+                let score = 0;
+                let attempted = 0;
+                let totalCorrectTime = 0;
+                let totalIncorrectTime = 0;
+                let correctCount = 0;
+                let incorrectCount = 0;
+                const sectionResults = {};
+                const timeBrackets = { '0-30s': 0, '31-60s': 0, '60s+': 0 };
+
+                shuffledQuestions.forEach((q, i) => {
+                    const section = q.section;
+                    if (!sectionResults[section]) {
+                        sectionResults[section] = { total: 0, correct: 0, attempted: 0, time: 0, wrongQuestions: [] };
+                    }
+                    sectionResults[section].total++;
+                    sectionResults[section].time += questionTimers[i];
+
+                    const isAttempted = isQuestionAnswered(i);
+                    const isCorrect = isAttempted && checkAnswerCorrectness(q, userAnswers[i]);
+                    
+                    if (isAttempted) {
+                        attempted++;
+                        sectionResults[section].attempted++;
+                        const time = questionTimers[i];
+                        if (time <= 30) timeBrackets['0-30s']++;
+                        else if (time <= 60) timeBrackets['31-60s']++;
+                        else timeBrackets['60s+']++;
+                    }
+
+                    if (isCorrect) {
+                        score++;
+                        sectionResults[section].correct++;
+                        totalCorrectTime += questionTimers[i];
+                        correctCount++;
+                    } else if(isAttempted) {
+                        totalIncorrectTime += questionTimers[i];
+                        incorrectCount++;
+                        sectionResults[section].wrongQuestions.push(q.question);
+                    }
+                });
+
+                const totalQuestions = shuffledQuestions.length;
+                const totalTimeTaken = totalTime - timeLeft;
+                const overallPercentage = (score / totalQuestions * 100).toFixed(1);
+                const accuracy = attempted > 0 ? (score / attempted * 100).toFixed(1) : 0;
+                
+                let performanceGrade = 'Needs Improvement';
+                let gradeColor = 'text-red-500';
+                if (overallPercentage >= 90) {
+                    performanceGrade = 'Excellent';
+                    gradeColor = 'text-green-500';
+                } else if (overallPercentage >= 75) {
+                    performanceGrade = 'Good';
+                    gradeColor = 'text-blue-500';
+                } else if (overallPercentage >= 60) {
+                    performanceGrade = 'Average';
+                    gradeColor = 'text-yellow-500';
+                }
+
+                reportData = {
+                    score, totalQuestions, overallPercentage, accuracy, totalTimeTaken, performanceGrade, gradeColor, sectionResults,
+                    avgTimePerQuestion: attempted > 0 ? (totalTimeTaken / attempted).toFixed(1) : 0,
+                    avgTimeCorrect: correctCount > 0 ? (totalCorrectTime / correctCount).toFixed(1) : 0,
+                    avgTimeIncorrect: incorrectCount > 0 ? (totalIncorrectTime / incorrectCount).toFixed(1) : 0,
+                    timeBrackets
+                };
+
+                renderReport(reportData);
+            }
+
+            function renderReport(data) {
+                renderOverallPerformance(data);
+                renderSectionPerformance(data);
+                renderTimePaceAnalysis(data);
+                renderImprovementSuggestions(data);
+                renderDetailedReview();
+            }
+
+            function renderOverallPerformance({ score, totalQuestions, overallPercentage, accuracy, totalTimeTaken, performanceGrade, gradeColor }) {
+                const container = document.getElementById('overall-performance');
+                container.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">Overall Performance Summary</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <p class="text-sm text-blue-700 font-semibold">Overall Score</p>
+                            <p class="text-3xl font-bold text-blue-900">${score}/${totalQuestions}</p>
+                            <p class="text-lg font-medium text-blue-800">${overallPercentage}%</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <p class="text-sm text-green-700 font-semibold">Accuracy Rate</p>
+                            <p class="text-3xl font-bold text-green-900">${accuracy}%</p>
+                            <p class="text-sm text-green-800">(On Attempted)</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <p class="text-sm text-purple-700 font-semibold">Time Taken</p>
+                            <p class="text-3xl font-bold text-purple-900">${formatTime(totalTimeTaken)}</p>
+                            <p class="text-sm text-purple-800">/ ${formatTime(totalTime)}</p>
+                        </div>
+                        <div class="bg-gray-100 p-4 rounded-lg">
+                             <p class="text-sm text-gray-600 font-semibold">Percentile</p>
+                             <p class="text-3xl font-bold text-gray-800">N/A</p>
+                             <p class="text-xs text-gray-500">(Feature coming soon)</p>
+                        </div>
+                        <div class="p-4 rounded-lg" style="background-color: ${gradeColor.replace('text-', '').replace('-500', '50')}">
+                            <p class="text-sm font-semibold" style="color: ${gradeColor.replace('text-', '').replace('-500', '700')}">Grade</p>
+                            <p class="text-3xl font-bold ${gradeColor}">${performanceGrade}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function renderSectionPerformance({ sectionResults }) {
+                 const container = document.getElementById('section-performance');
+                 let content = `<h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">Section-wise Performance</h2><div class="space-y-4">`;
+                 for (const section in sectionResults) {
+                     const res = sectionResults[section];
+                     const sectionAccuracy = res.attempted > 0 ? (res.correct / res.attempted * 100) : 0;
+                     const avgTime = res.attempted > 0 ? (res.time / res.attempted) : 0;
+                     content += `
+                         <div class="border p-4 rounded-lg bg-white">
+                             <h3 class="font-bold text-lg text-gray-800">${section}</h3>
+                             <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                                 <div>Score: <span class="font-semibold">${res.correct} / ${res.total}</span></div>
+                                 <div>Attempted: <span class="font-semibold">${res.attempted} / ${res.total}</span></div>
+                                 <div>Accuracy: <span class="font-semibold">${sectionAccuracy.toFixed(1)}%</span></div>
+                                 <div>Avg Pace: <span class="font-semibold">${formatTime(avgTime, true)}</span></div>
+                             </div>
+                             <div class="mt-2 bg-gray-200 rounded-full h-2.5">
+                                 <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${sectionAccuracy}%"></div>
+                             </div>
+                         </div>
+                     `;
+                 }
+                 content += `</div>`;
+                 container.innerHTML = content;
+            }
+
+            function renderTimePaceAnalysis({ avgTimePerQuestion, avgTimeCorrect, avgTimeIncorrect, timeBrackets }) {
+                const container = document.getElementById('time-pace-analysis');
+                const totalAnswered = Object.values(timeBrackets).reduce((a, b) => a + b, 0);
+                container.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">Time & Pace Analysis</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white border p-4 rounded-lg">
+                            <h3 class="font-semibold text-md mb-2">Pacing Breakdown</h3>
+                            <p class="text-sm">Avg. Time / Question: <span class="font-bold">${formatTime(avgTimePerQuestion, true)}</span></p>
+                            <p class="text-sm">Avg. Time (Correct): <span class="font-bold text-green-600">${formatTime(avgTimeCorrect, true)}</span></p>
+                            <p class="text-sm">Avg. Time (Incorrect): <span class="font-bold text-red-600">${formatTime(avgTimeIncorrect, true)}</span></p>
+                        </div>
+                        <div class="bg-white border p-4 rounded-lg md:col-span-2">
+                             <h3 class="font-semibold text-md mb-2">Time Distribution</h3>
+                             <div class="space-y-2">
+                                 ${Object.entries(timeBrackets).map(([bracket, count]) => `
+                                     <div class="flex items-center">
+                                         <span class="text-sm w-16">${bracket}</span>
+                                         <div class="w-full bg-gray-200 rounded-full h-4">
+                                             <div class="bg-purple-500 h-4 rounded-full text-white text-xs flex items-center justify-center" style="width: ${totalAnswered > 0 ? (count / totalAnswered * 100) : 0}%">
+                                                 ${count}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 `).join('')}
+                             </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function renderImprovementSuggestions({ sectionResults }) {
+                const container = document.getElementById('improvement-suggestions');
+                let suggestions = [];
+                for (const section in sectionResults) {
+                    const res = sectionResults[section];
+                    const accuracy = res.attempted > 0 ? (res.correct / res.attempted * 100) : 100;
+                    if (accuracy < 60 && res.attempted > 0) {
+                        suggestions.push(`Your accuracy in <strong>${section}</strong> is low (${accuracy.toFixed(0)}%). Consider reviewing the core concepts in this area.`);
+                    }
+                }
+                if (suggestions.length === 0) {
+                    suggestions.push("Great job! You've shown strong performance across all sections. Keep practicing to maintain your skills.");
+                }
+
+                 container.innerHTML = `
+                     <h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">Improvement Suggestions</h2>
+                     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                         <ul class="list-disc list-inside space-y-1 text-yellow-800">
+                             ${suggestions.map(s => `<li>${s}</li>`).join('')}
+                         </ul>
+                     </div>
+                  `;
+            }
+
+            function renderDetailedReview() {
+                const container = document.getElementById('detailed-question-review');
+                let content = `<h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">Detailed Question Review</h2><div class="space-y-6">`;
+                
+                shuffledQuestions.forEach((q, i) => {
+                    const isAttempted = isQuestionAnswered(i);
+                    const isCorrect = isAttempted && checkAnswerCorrectness(q, userAnswers[i]);
+                    
+                    let statusTag = '';
+                    if (!isAttempted) {
+                        statusTag = `<span class="text-xs font-bold uppercase px-2 py-1 bg-gray-200 text-gray-800 rounded-full">Unanswered</span>`;
+                    } else if (isCorrect) {
+                        statusTag = `<span class="text-xs font-bold uppercase px-2 py-1 bg-green-200 text-green-800 rounded-full">Correct</span>`;
+                    } else {
+                        statusTag = `<span class="text-xs font-bold uppercase px-2 py-1 bg-red-200 text-red-800 rounded-full">Incorrect</span>`;
+                    }
+
+                    let reviewContent = '';
+                    if (q.type === 'mcq' || q.type === 'mmcq') {
+                        reviewContent = renderMcqReview(q, i, isAttempted, isCorrect);
+                    } else if (q.type === 'tita') {
+                        reviewContent = renderTitaReview(q, i, isAttempted, isCorrect);
+                    }
+
+                    content += `
+                        <div class="border-b pb-6">
+                            <div class="flex justify-between items-start mb-2">
+                                <p class="font-semibold pr-4">Q${i + 1}: ${q.question.replace(/`(.*?)`/g, '<code class="bg-gray-100 font-bold text-black px-1 rounded-md font-mono">$1</code>')}</p>
+                                <div class="flex-shrink-0">${statusTag}</div>
+                            </div>
+                            <div>${reviewContent}</div>
+                            <div class="mt-3 bg-gray-50 p-3 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <p class="font-semibold text-sm">Explanation:</p>
+                                    <button class="explain-btn text-xs bg-purple-100 text-purple-700 font-semibold py-1 px-2 rounded-md hover:bg-purple-200" data-question-index="${i}">✨ Explain to an Interviewer</button>
+                                </div>
+                                <p class="text-sm text-gray-700 mt-1">${q.explanation}</p>
+                                <div id="explanation-content-${i}" class="hidden mt-2 pt-2 border-t border-gray-200 text-sm"></div>
+                            </div>
+                            <div class="text-right text-xs text-gray-500 mt-2">Time taken: ${questionTimers[i] ? questionTimers[i].toFixed(1) : '0.0'}s</div>
+                        </div>
+                    `;
+                });
+                content += `</div>`;
+                container.innerHTML = content;
+
+                document.querySelectorAll('.explain-btn').forEach(btn => {
+                    btn.addEventListener('click', handleExplanationClick);
+                });
+            }
+
+            function renderMcqReview(q, i, isAttempted, isCorrect) {
+                let optionsHTML = '';
+                const userAnswer = userAnswers[i];
+                q.shuffledOptions.forEach((opt, idx) => {
+                    let classes = 'option p-3 border rounded-md mt-2 text-sm';
+                    const isCorrectAnswer = Array.isArray(q.shuffledAnswer) ? q.shuffledAnswer.includes(idx) : q.shuffledAnswer === idx;
+                    const isUserChoice = Array.isArray(userAnswer) ? userAnswer.includes(idx) : userAnswer === idx;
+
+                    if (isCorrectAnswer) {
+                        classes += ' correct';
+                    }
+                    if (isAttempted && isUserChoice && !isCorrectAnswer) {
+                        classes += ' incorrect';
+                    }
+                    optionsHTML += `<div class="${classes}">${String.fromCharCode(65 + idx)}. ${opt.replace(/`(.*?)`/g, '<code class="bg-gray-100 font-bold text-black px-1 rounded-md font-mono">$1</code>')}</div>`;
+                });
+                return optionsHTML;
+            }
+
+            function renderTitaReview(q, i, isAttempted, isCorrect) {
+                let reviewHTML = `<p class="text-sm mt-2">Your Answer: <span class="font-semibold ${isCorrect ? 'text-green-700' : 'text-red-700'}">${escapeHtml(userAnswers[i]) || '<em>Not Answered</em>'}</span></p>`;
+                if (!isCorrect) {
+                    const correctAnswerText = Array.isArray(q.answer) ? q.answer.join(' / ') : q.answer;
+                    reviewHTML += `<p class="text-sm mt-1">Correct Answer: <span class="font-semibold text-green-700">${escapeHtml(correctAnswerText)}</span></p>`;
+                }
+                return reviewHTML;
+            }
+            
+            // --- Gemini API Integration ---
+            async function callGeminiAPI(prompt) {
+                const apiKey = ""; // API key will be injected by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }]
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        return result.candidates[0].content.parts[0].text;
+                    } else {
+                        console.error("Unexpected API response structure:", result);
+                        return "Sorry, I couldn't get a response. Please try again.";
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    return "An error occurred while fetching the explanation. Please check the console for details.";
+                }
+            }
+
+            async function handleExplanationClick(event) {
+                const button = event.target;
+                const questionIndex = button.dataset.questionIndex;
+                const contentDiv = document.getElementById(`explanation-content-${questionIndex}`);
+                
+                if (contentDiv.classList.contains('hidden')) {
+                    const question = shuffledQuestions[questionIndex];
+                    const prompt = `Act as a senior business analyst and consultant. Explain the following concept clearly, concisely and to the point as if you were in a technical interview.
+                                    After every complete paragraph, leave 1 line then write the next set of statments and continue. Do not use any markdown formatting like bolding, or headers. Do not use any latex format font, keep it plain. Just provide a direct, professional explanation in plain text.
+                                    Concept: "${question.question}"
+                                    Standard Explanation: "${question.explanation}"`;
+                    
+                    contentDiv.innerHTML = '<div class="loader"></div>';
+                    contentDiv.classList.remove('hidden');
+                    button.disabled = true;
+
+                    const simplifiedExplanation = await callGeminiAPI(prompt);
+                    contentDiv.innerHTML = simplifiedExplanation.replace(/\n/g, '<br>');
+                    button.disabled = false;
+                } else {
+                    contentDiv.classList.add('hidden');
+                    contentDiv.innerHTML = '';
+                }
+            }
+            
+            async function handleStudyPlanClick() {
+                const container = document.getElementById('study-plan-container');
+                container.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700 border-b pb-2">✨ Your Personalized Study Plan</h2>
+                    <div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-r-lg">
+                        <div class="loader"></div>
+                        <p class="text-center text-purple-700">Generating your personalized study plan with AI... Please wait.</p>
+                    </div>
+                `;
+                container.classList.remove('hidden');
+                generateStudyPlanBtn.disabled = true;
+
+                let weakSections = [];
+                for (const section in reportData.sectionResults) {
+                    const res = reportData.sectionResults[section];
+                    const accuracy = res.attempted > 0 ? (res.correct / res.attempted * 100) : 100;
+                    if (accuracy < 75 && res.attempted > 0) {
+                        weakSections.push(`- Section: ${section}, Accuracy: ${accuracy.toFixed(0)}%`);
+                    }
+                }
+
+                const prompt = `My name is ${userName}. I just took a MySQL quiz.
+                                My overall score was ${reportData.score} out of ${reportData.totalQuestions} (${reportData.overallPercentage}%).
+                                My performance grade is "${reportData.performanceGrade}".
+                                I struggled in the following areas:
+                                ${weakSections.join('\n')}
+                                
+                                Act as a friendly and encouraging senior business analyst and consultant tutor. Based on this information, create a personalized, actionable study plan for me.
+                                The plan should be a series of direct bullet points. For each point, identify the specific topic I need to work on and suggest why I might be struggling (e.g., speed, accuracy).
+                                Provide concrete next steps. Do not use any markdown formatting like bolding or headers. After every complete paragraph/sentence, leave a 1 line space. Do not use any markdown formatting like bolding, headers, or bullet points. Do not use any latex format font, keep it plain. The output should be plain text with bullet points starting with a hyphen.
+                                Address me by my name.`;
+
+                const studyPlanText = await callGeminiAPI(prompt);
+                const formattedStudyPlan = studyPlanText
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line)
+                    .map(line => {
+                        if (line.startsWith('-')) {
+                            return `<li>${escapeHtml(line.substring(1).trim())}</li>`;
+                        }
+                        return `<p>${escapeHtml(line)}</p>`;
+                    })
+                    .join('');
+
+                container.querySelector('.bg-purple-50').innerHTML = `<ul>${formattedStudyPlan}</ul>`;
+                generateStudyPlanBtn.disabled = false;
+            }
+
+            function generateReportHTML() {
+                const reportTitle = "MySQL Quiz Performance Report";
+                const styles = `
+                    body { font-family: 'Inter', sans-serif; color: #333; }
+                    .report-container { width: 100%; max-width: 800px; margin: auto; padding: 20px; border: 1px solid #eee; }
+                    h1, h2, h3 { color: #111; }
+                    h1 { font-size: 28px; }
+                    h2 { font-size: 22px; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px; margin-bottom: 10px; }
+                    h3.report-user { font-size: 18px; font-weight: 600; color: #555; border-bottom: none; margin-top: 0; }
+                    .grid { display: grid; gap: 1rem; }
+                    .grid-cols-5 { grid-template-columns: repeat(5, 1fr); }
+                    .grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+                    .grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+                    .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+                    .text-center { text-align: center; }
+                    .p-4 { padding: 1rem; }
+                    .rounded-lg { border-radius: 0.5rem; }
+                    .bg-blue-50 { background-color: #EFF6FF; } .text-blue-700 { color: #1D4ED8; } .text-blue-900 { color: #1E3A8A; }
+                    .bg-green-50 { background-color: #F0FDF4; } .text-green-700 { color: #15803D; } .text-green-900 { color: #14532D; }
+                    .bg-purple-50 { background-color: #FAF5FF; } .text-purple-700 { color: #7E22CE; } .text-purple-900 { color: #581C87; }
+                    .bg-gray-100 { background-color: #F3F4F6; }
+                    .font-bold { font-weight: 700; }
+                    .font-semibold { font-weight: 600; }
+                    .text-sm { font-size: 0.875rem; }
+                    .text-lg { font-size: 1.125rem; }
+                    .text-3xl { font-size: 1.875rem; }
+                    .border { border: 1px solid #E5E7EB; }
+                    .space-y-4 > * + * { margin-top: 1rem; }
+                    .bg-gray-200 { background-color: #E5E7EB; }
+                    .h-2-5 { height: 0.625rem; }
+                    .rounded-full { border-radius: 9999px; }
+                    .bg-blue-600 { background-color: #2563EB; }
+                    .correct { background-color: #D1FAE5; border-color: #10B981; }
+                    .incorrect { background-color: #FEE2E2; border-color: #EF4444; }
+                    .explanation { background-color: #F9FAFB; padding: 0.75rem; border-radius: 0.5rem; margin-top: 0.75rem; }
+                    code { background-color: #e5e7eb; font-weight: bold; color: black; padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+                `;
+
+                const overallHTML = document.getElementById('overall-performance').innerHTML;
+                const sectionHTML = document.getElementById('section-performance').innerHTML;
+                const timeHTML = document.getElementById('time-pace-analysis').innerHTML;
+                const suggestionsHTML = document.getElementById('improvement-suggestions').innerHTML;
+                const reviewHTML = document.getElementById('detailed-question-review').innerHTML;
+
+                return `
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>${escapeHtml(reportTitle)}</title>
+                        <style>${styles}</style>
+                    </head>
+                    <body>
+                        <div class="report-container">
+                            <h1>${escapeHtml(reportTitle)}</h1>
+                            <h3 class="report-user">Report for: ${escapeHtml(userName)}</h3>
+                            <div id="overall-performance">${overallHTML}</div>
+                            <div id="section-performance">${sectionHTML}</div>
+                            <div id="time-pace-analysis">${timeHTML}</div>
+                            <div id="improvement-suggestions">${suggestionsHTML}</div>
+                            <div id="detailed-question-review">${reviewHTML.replace(/<button class="explain-btn.*<\/button>/g, '')}</div>
+                        </div>
+                    </body>
+                    </html>
+                `;
+            }
+
+            function downloadReport() {
+                const htmlContent = generateReportHTML();
+                const blob = new Blob([htmlContent], { type: 'application/msword' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `MySQL_Quiz_Report_${userName.replace(/ /g, '_')}.doc`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // --- EVENT LISTENERS ---
+            startQuizBtn.onclick = () => {
+                userName = nameInput.value.trim() || 'Guest';
+                startQuiz();
+            };
+
+            prevBtn.onclick = () => goToQuestion(currentQuestionIndex - 1);
+            nextBtn.onclick = () => goToQuestion(currentQuestionIndex + 1);
+            submitBtn.onclick = submitQuiz;
+            
+            restartBtn.onclick = () => {
+                resultsView.classList.add('hidden');
+                welcomeView.classList.remove('hidden');
+                nameInput.value = '';
+            };
+
+            downloadReportBtn.onclick = downloadReport;
+            generateStudyPlanBtn.onclick = handleStudyPlanClick;
+
+            bookmarkBtn.onclick = () => {
+                bookmarkedQuestions[currentQuestionIndex] = !bookmarkedQuestions[currentQuestionIndex];
+                updateBookmarkButton();
+                renderPalette();
+            };
+
+            paletteToggle.onclick = () => palette.classList.remove('palette-hidden');
+            paletteClose.onclick = () => palette.classList.add('palette-hidden');
+            
+            filterAllBtn.onclick = () => {
+                renderPalette('all');
+                filterAllBtn.classList.add('bg-blue-500', 'text-white');
+                filterBookmarkedBtn.classList.remove('bg-blue-500', 'text-white');
+                filterBookmarkedBtn.classList.add('bg-gray-200', 'text-gray-700');
+            };
+
+            filterBookmarkedBtn.onclick = () => {
+                renderPalette('bookmarked');
+                filterBookmarkedBtn.classList.add('bg-blue-500', 'text-white');
+                filterAllBtn.classList.remove('bg-blue-500', 'text-white');
+                filterAllBtn.classList.add('bg-gray-200', 'text-gray-700');
+            };
+
+        });
+    </script>
+</body>
+</html>
